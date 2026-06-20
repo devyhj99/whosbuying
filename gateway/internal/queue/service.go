@@ -19,6 +19,8 @@ func NewService(rdb *redis.Client) *Service {
 const (
 	queueKey       = "item:queue:"
 	tokenStatusKey = "item:token:status:"
+	queueTTL       = 24 * time.Hour
+	tokenStatusTTL = 15 * time.Minute
 )
 
 // CreateToken 새로운 대기열 토큰을 발급하고 대기열 ZSET에 등록합니다.
@@ -32,7 +34,9 @@ func (s *Service) CreateToken(ctx context.Context, itemID string) (string, error
 		Score:  float64(time.Now().UnixNano()),
 		Member: newToken,
 	})
-	pipe.Set(ctx, tokenStatusKey+newToken, "WAITING", 15*time.Minute)
+	// 대기열 키 자체의 TTL 지정/갱신 (24시간)
+	pipe.Expire(ctx, itemQueueKey, queueTTL)
+	pipe.Set(ctx, tokenStatusKey+newToken, "WAITING", tokenStatusTTL)
 
 	_, err := pipe.Exec(ctx)
 	return newToken, err
