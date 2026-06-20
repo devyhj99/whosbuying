@@ -23,20 +23,7 @@ const (
 	tokenStatusKey = "item:token:status:"
 )
 
-// AddToQueue Redis Sorted Set에 유저를 등록합니다 (Score = 나노초 타임스탬프)
-func (s *Service) AddToQueue(ctx context.Context, itemID, token string) error {
-	key := queueKey + itemID
-	return s.rdb.ZAdd(ctx, key, redis.Z{
-		Score:  float64(time.Now().UnixNano()),
-		Member: token,
-	}).Err()
-}
 
-// GetRank 현재 유저의 대기 순번을 조회합니다 (0등부터 시작하므로 결과에 +1 필요)
-func (s *Service) GetRank(ctx context.Context, itemID, token string) (int64, error) {
-	key := queueKey + itemID
-	return s.rdb.ZRank(ctx, key, token).Result()
-}
 
 // GetOrCreateToken 유저의 기존 토큰이 있다면 반환하고, 없다면 새로 발급합니다.
 func (s *Service) GetOrCreateToken(ctx context.Context, itemID, userID string) (string, error) {

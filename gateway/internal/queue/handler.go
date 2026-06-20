@@ -71,7 +71,6 @@ func (h *Handler) StreamQueue(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-ticker.C:
 			// Redis에서 순위 조회
-			//rank, err := h.service.GetRank(ctx, itemID, userID)
 			rank, err := h.service.GetRankByToken(ctx, itemID, token)
 			if err != nil {
 				return
