@@ -18,16 +18,28 @@ func main() {
 		_ = godotenv.Load("../.env")
 	}
 
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "localhost:6379"
-	}
-	redisPassword := os.Getenv("REDIS_PASSWORD")
+	redisURL := os.Getenv("REDIS_URL")
+	var opt *redis.Options
+	var err error
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: redisPassword,
-	})
+	if redisURL != "" {
+		opt, err = redis.ParseURL(redisURL)
+		if err != nil {
+			log.Fatalf("Redis URL 파싱 실패: %v", err)
+		}
+	} else {
+		redisAddr := os.Getenv("REDIS_ADDR")
+		if redisAddr == "" {
+			redisAddr = "localhost:6379"
+		}
+		redisPassword := os.Getenv("REDIS_PASSWORD")
+		opt = &redis.Options{
+			Addr:     redisAddr,
+			Password: redisPassword,
+		}
+	}
+
+	rdb := redis.NewClient(opt)
 
 	// 2. 핑(Ping) 테스트로 레디스 연결 상태 확인
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
