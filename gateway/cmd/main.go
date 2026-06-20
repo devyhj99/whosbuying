@@ -1,20 +1,29 @@
 package main
 
 import (
-	"os"
 	"context"
 	"gateway/internal/queue"
 	"log"
 	"net/http"
+	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 )
 
 func main() {
 	// 1. Redis 연결 설정
+	_ = godotenv.Load() // .env 파일 로드 (로컬 개발용)
+
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     os.Getenv("REDIS_ADDR"),
-		Password: os.Getenv("REDIS_PASSWORD"),
+		Addr:     redisAddr,
+		Password: redisPassword,
 	})
 
 	// 2. 핑(Ping) 테스트로 레디스 연결 상태 확인
