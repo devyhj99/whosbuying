@@ -13,7 +13,10 @@ import (
 
 func main() {
 	// 1. Redis 연결 설정
-	_ = godotenv.Load() // .env 파일 로드 (로컬 개발용)
+	// 로컬 .env 파일 또는 시스템 환경 변수 로드
+	if err := godotenv.Load(); err != nil {
+		_ = godotenv.Load("../.env")
+	}
 
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
