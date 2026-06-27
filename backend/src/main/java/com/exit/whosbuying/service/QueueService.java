@@ -57,12 +57,18 @@ public class QueueService {
           itemId,
           currentActiveCount,
           maxActiveUsers);
+      // 기존 활성 유저가 존재하므로 TTL 연장
+      redisTemplate.expire(activeKey, statusTtl.multipliedBy(2));
       return;
     }
 
     // 4. 여유 슬롯만큼 대기열에서 Pop
     Set<TypedTuple<String>> popped = redisTemplate.opsForZSet().popMin(queueKey, availableSlots);
     if (popped == null || popped.isEmpty()) {
+      // 대기열에 아무도 없지만 기존 활성 유저가 있을 수 있으므로 TTL 연장
+      if (currentActiveCount > 0) {
+        redisTemplate.expire(activeKey, statusTtl.multipliedBy(2));
+      }
       return;
     }
 
@@ -87,6 +93,9 @@ public class QueueService {
         redisTemplate.opsForZSet().add(activeKey, token, (double) expireTime);
       }
     }
+
+    // 활성 ZSET 키 자체도 유저가 없으면 자동 청소되도록 TTL 부여 (토큰 TTL의 2배)
+    redisTemplate.expire(activeKey, statusTtl.multipliedBy(2));
   }
 
   /** 사용자가 구매 완료 또는 취소 시 활성 슬롯을 반납(제거)합니다. */
