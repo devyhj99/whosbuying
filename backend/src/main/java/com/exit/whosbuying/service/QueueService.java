@@ -6,7 +6,7 @@ import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
 import org.springframework.stereotype.Service;
 
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class QueueService {
 
-  private final RedisTemplate<String, Object> redisTemplate;
+  private final StringRedisTemplate redisTemplate;
 
   @Value("${queue.redis.key-prefix.queue:item:queue:}")
   private String queueKeyPrefix;
@@ -61,7 +61,7 @@ public class QueueService {
     }
 
     // 4. 여유 슬롯만큼 대기열에서 Pop
-    Set<TypedTuple<Object>> popped = redisTemplate.opsForZSet().popMin(queueKey, availableSlots);
+    Set<TypedTuple<String>> popped = redisTemplate.opsForZSet().popMin(queueKey, availableSlots);
     if (popped == null || popped.isEmpty()) {
       return;
     }
@@ -75,16 +75,16 @@ public class QueueService {
 
     // 5. 각 토큰에 대해 상태 업데이트 및 만료 시간과 함께 활성 ZSET에 추가
     long expireTime = now + statusTtl.toMillis();
-    for (TypedTuple<Object> tuple : popped) {
-      Object token = tuple.getValue();
+    for (TypedTuple<String> tuple : popped) {
+      String token = tuple.getValue();
       if (token != null) {
-        String tokenStr = token.toString();
-
         // token status를 ALLOWED로 변경 (TTL)
-        redisTemplate.opsForValue().set(statusKeyPrefix + tokenStr, QueueStatus.ALLOWED.name(), statusTtl);
+        redisTemplate
+            .opsForValue()
+            .set(statusKeyPrefix + token, QueueStatus.ALLOWED.name(), statusTtl);
 
         // 활성 유저 ZSET에 추가 (만료 시간을 스코어로 저장)
-        redisTemplate.opsForZSet().add(activeKey, tokenStr, (double) expireTime);
+        redisTemplate.opsForZSet().add(activeKey, token, (double) expireTime);
       }
     }
   }
@@ -108,7 +108,7 @@ public class QueueService {
   /** 토큰의 상태가 ALLOWED 인지 확인합니다. */
   public boolean isAllowed(String token) {
     String statusKey = statusKeyPrefix + token;
-    Object status = redisTemplate.opsForValue().get(statusKey);
+    String status = redisTemplate.opsForValue().get(statusKey);
     return QueueStatus.ALLOWED.name().equals(status);
   }
 
