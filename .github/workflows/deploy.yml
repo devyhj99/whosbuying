@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # 1. OCI 인스턴스에 docker-compose.yml 파일 전송
       - name: Copy docker-compose.yml via SCP
