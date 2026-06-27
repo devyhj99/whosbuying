@@ -78,7 +78,7 @@ jobs:
           key: ${{ secrets.OCI_SSH_KEY }}
           port: 22
           source: "docker-compose.yml"
-          target: "~/whosbuying/"
+          target: "~/apps/whosbuying/"
 
       # 2. OCI 인스턴스에서 배포 스크립트 실행
       - name: Deploy to OCI Instance
@@ -89,7 +89,7 @@ jobs:
           key: ${{ secrets.OCI_SSH_KEY }}
           port: 22
           script: |
-            cd ~/whosbuying
+            cd ~/apps/whosbuying
             
             # GitHub Packages (GHCR) 로그인
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
