@@ -15,7 +15,8 @@ env:
   IMAGE_NAME_GATEWAY: whosbuying-gateway
 
 jobs:
-  build-and-push:
+  # 1. 파일 변경 경로 감지 Job
+  detect-changes:
     runs-on: ubuntu-latest
     outputs:
       gateway: ${{ steps.filter.outputs.gateway }}
@@ -24,7 +25,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # 변경 경로 감지 필터 추가
       - name: Check for file changes
         id: filter
         uses: dorny/paths-filter@v3
@@ -39,16 +39,22 @@ jobs:
               - 'docker-compose.yml'
               - '.github/workflows/deploy.yml'
 
+  # 2. Go 게이트웨이 빌드 Job (병렬 실행)
+  build-gateway:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.gateway == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
       - name: Set up QEMU
-        if: steps.filter.outputs.gateway == 'true' || steps.filter.outputs.backend == 'true'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        if: steps.filter.outputs.gateway == 'true' || steps.filter.outputs.backend == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to the Container Registry
-        if: steps.filter.outputs.gateway == 'true' || steps.filter.outputs.backend == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -56,15 +62,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Downcase GitHub Actor for Image Name
-        if: steps.filter.outputs.gateway == 'true' || steps.filter.outputs.backend == 'true'
         run: |
           echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
         env:
           OWNER: ${{ github.repository_owner }}
 
-      # 1. Go Gateway 이미지 빌드 및 푸시
       - name: Build and push Gateway image
-        if: steps.filter.outputs.gateway == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./gateway
@@ -74,9 +77,35 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 2. Spring Boot 백엔드 이미지 빌드 및 푸시
+  # 3. Spring Boot 백엔드 빌드 Job (병렬 실행)
+  build-backend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Downcase GitHub Actor for Image Name
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
+        env:
+          OWNER: ${{ github.repository_owner }}
+
       - name: Build and push Backend image
-        if: steps.filter.outputs.backend == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./backend
@@ -86,16 +115,20 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # 4. 배포 실행 Job
   deploy:
-    needs: build-and-push
-    # 빌드된 항목이 있거나 컴포즈/워크플로우가 수정된 배포 필요 시에만 수행
-    if: ${{ needs.build-and-push.outputs.gateway == 'true' || needs.build-and-push.outputs.backend == 'true' }}
+    needs: [detect-changes, build-gateway, build-backend]
+    # 감지된 변경사항이 있고, 실행된 빌드가 모두 성공했을 경우(또는 스킵된 경우) 최종 배포
+    if: |
+      always() &&
+      (needs.detect-changes.outputs.gateway == 'true' || needs.detect-changes.outputs.backend == 'true') &&
+      (needs.build-gateway.result == 'success' || needs.build-gateway.result == 'skipped') &&
+      (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # 1. OCI 인스턴스에 docker-compose.yml 파일 전송
       - name: Copy docker-compose.yml via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -106,7 +139,6 @@ jobs:
           source: "docker-compose.yml"
           target: "~/apps/whosbuying/"
 
-      # 2. OCI 인스턴스에서 배포 스크립트 실행
       - name: Deploy to OCI Instance
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -116,13 +148,7 @@ jobs:
           port: 22
           script: |
             cd ~/apps/whosbuying
-            
-            # GitHub Packages (GHCR) 로그인
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
-            
-            # 컨테이너 갱신 및 재기동
             docker compose pull
             docker compose up -d
-            
-            # 미사용 이미지 정리
             docker image prune -f
