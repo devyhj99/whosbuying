@@ -13,6 +13,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME_BACKEND: whosbuying-backend
   IMAGE_NAME_GATEWAY: whosbuying-gateway
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # 1. 파일 변경 경로 감지 Job
