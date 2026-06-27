@@ -86,11 +86,6 @@ jobs:
           script: |
             cd ~/whosbuying
             
-            # .env 파일 생성 (깃허브 시크릿에서 안전하게 주입)
-            cat << 'EOF' > .env
-            ${{ secrets.OCI_ENV_CONTENT }}
-            EOF
-            
             # GitHub Packages (GHCR) 로그인
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
             
