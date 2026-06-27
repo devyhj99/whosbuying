@@ -1,0 +1,47 @@
+server:
+  port: ${BACKEND_PORT:${PORT:8080}} # 서버 구동 환경에 맞게 환경변수로 포트 오버라이드 가능 (기본값 8080)
+
+spring:
+  application:
+    name: whosbuying
+
+  config:
+    import:
+      - "optional:file:.env[.properties]"
+      - "optional:file:../.env[.properties]"
+
+  datasource:
+    url: ${POSTGRES_URL}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:30} # 서버 사양에 맞춰 환경변수로 즉시 튜닝 가능
+      minimum-idle: ${HIKARI_MIN_IDLE:30}           # 성능 향상을 위해 max-pool-size와 일치 권장
+      connection-timeout: ${HIKARI_CONN_TIMEOUT:20000}
+      max-lifetime: ${HIKARI_MAX_LIFETIME:1800000}
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT:600000}
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate} # 서버 환경 안정성을 위해 스키마 무단 변경 방지 (기본값 validate)
+    show-sql: ${JPA_SHOW_SQL:false}      # 성능 테스트 및 운영 서버에서는 SQL 대량 출력을 억제하여 디스크 I/O 병목 방지 (기본값 false)
+    properties:
+      hibernate:
+        format_sql: ${JPA_FORMAT_SQL:false}
+        use_sql_comments: ${JPA_SQL_COMMENTS:false}
+        highlight_sql: ${JPA_HIGHLIGHT_SQL:false}
+    open-in-view: false # DB 커넥션 과점 방지를 위해 OSIV 비활성화
+
+  data:
+    redis:
+      url: ${REDIS_URL}
+
+  threads:
+    virtual:
+      enabled: ${VIRTUAL_THREADS_ENABLED:true} # 최신 JVM 환경에서 가상 스레드 기본 활성화
+
+logging:
+  level:
+    org.hibernate.SQL: ${HIBERNATE_SQL_LOG_LEVEL:info} # 운영 서버에서는 SQL 로그 최소화
+    org.hibernate.orm.jdbc.bind: ${HIBERNATE_BIND_LOG_LEVEL:info}

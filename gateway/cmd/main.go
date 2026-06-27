@@ -15,28 +15,19 @@ func main() {
 	// 1. Redis 연결 설정
 	// 로컬 .env 파일 또는 시스템 환경 변수 로드
 	if err := godotenv.Load(); err != nil {
-		_ = godotenv.Load("../.env")
+		if err := godotenv.Load("../.env"); err != nil {
+			_ = godotenv.Load("../../.env")
+		}
 	}
 
 	redisURL := os.Getenv("REDIS_URL")
-	var opt *redis.Options
-	var err error
+	if redisURL == "" {
+		redisURL = "redis://localhost:6379"
+	}
 
-	if redisURL != "" {
-		opt, err = redis.ParseURL(redisURL)
-		if err != nil {
-			log.Fatalf("Redis URL 파싱 실패: %v", err)
-		}
-	} else {
-		redisAddr := os.Getenv("REDIS_ADDR")
-		if redisAddr == "" {
-			redisAddr = "localhost:6379"
-		}
-		redisPassword := os.Getenv("REDIS_PASSWORD")
-		opt = &redis.Options{
-			Addr:     redisAddr,
-			Password: redisPassword,
-		}
+	opt, err := redis.ParseURL(redisURL)
+	if err != nil {
+		log.Fatalf("Redis URL 파싱 실패: %v", err)
 	}
 
 	rdb := redis.NewClient(opt)
@@ -53,9 +44,13 @@ func main() {
 
 	http.HandleFunc("/api/queue/stream", queueHandler.StreamQueue)
 
-	// 4. 8080 포트로 고성능 게이트웨이 구동
-	log.Println("Go 대기열 게이트웨이가 8080 포트에서 시작되었습니다...")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	// 4. 게이트웨이 포트 설정 및 구동
+	gatewayPort := os.Getenv("GATEWAY_PORT")
+	if gatewayPort == "" {
+		gatewayPort = "8081"
+	}
+	log.Printf("Go 대기열 게이트웨이가 %s 포트에서 시작되었습니다...\n", gatewayPort)
+	if err := http.ListenAndServe(":"+gatewayPort, nil); err != nil {
 		log.Fatalf("서버 가동 실패: %v", err)
 	}
 }
