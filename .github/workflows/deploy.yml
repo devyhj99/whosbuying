@@ -1,0 +1,102 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: whosbuying-backend
+  IMAGE_NAME_GATEWAY: whosbuying-gateway
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Downcase GitHub Actor for Image Name
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
+        env:
+          OWNER: ${{ github.repository_owner }}
+
+      # 1. Go Gateway 이미지 빌드 및 푸시
+      - name: Build and push Gateway image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./gateway
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.IMAGE_NAME_GATEWAY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 2. Spring Boot 백엔드 이미지 빌드 및 푸시
+      - name: Build and push Backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.IMAGE_NAME_BACKEND }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 1. OCI 인스턴스에 docker-compose.yml 파일 전송
+      - name: Copy docker-compose.yml via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USERNAME }}
+          key: ${{ secrets.OCI_SSH_KEY }}
+          port: 22
+          source: "docker-compose.yml"
+          target: "~/whosbuying/"
+
+      # 2. OCI 인스턴스에서 배포 스크립트 실행
+      - name: Deploy to OCI Instance
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USERNAME }}
+          key: ${{ secrets.OCI_SSH_KEY }}
+          port: 22
+          script: |
+            cd ~/whosbuying
+            
+            # .env 파일 생성 (깃허브 시크릿에서 안전하게 주입)
+            cat << 'EOF' > .env
+            ${{ secrets.OCI_ENV_CONTENT }}
+            EOF
+            
+            # GitHub Packages (GHCR) 로그인
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+            
+            # 컨테이너 갱신 및 재기동
+            docker compose pull
+            docker compose up -d
+            
+            # 미사용 이미지 정리
+            docker image prune -f
