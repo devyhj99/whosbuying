@@ -77,16 +77,18 @@ sequenceDiagram
   - `github.com/google/uuid v1.6.0` — UUIDv4 토큰 생성
   - `github.com/redis/go-redis/v9 v9.20.1` — Redis 클라이언트
   - `github.com/joho/godotenv v1.5.1` — 환경 변수 로드
+- **Spring 비즈니스 서버 (초기 설정 완료)**
+  - Framework: Spring Boot 4.0.7 / Java 25 (가상 스레드 활성화)
+  - Database: PostgreSQL (org.postgresql:postgresql)
+  - Redis Client: Spring Data Redis
 
 ### 🔜 추가 예정
-- **Spring 비즈니스 서버**
-  - Framework: Spring Boot 4+ / Java 25+ (가상 스레드 활성화)
-  - Database: PostgreSQL (18+ / alpine)
-  - Redis Client: Redisson (분산 락 제어)
 - **React 프론트엔드**
   - Library/Framework: React, Vite, TypeScript
   - Styling: TailwindCSS 혹은 Vanilla CSS
   - API Connection: EventSource (SSE 수신)
+- **Spring 비즈니스 서버 고도화**
+  - Redis Client: Redisson (분산 락 제어 구현 예정)
 
 ---
 
@@ -101,9 +103,18 @@ whosbuying/
 │       └── queue/
 │           ├── handler.go         # HTTP 핸들러: SSE 스트리밍, 쿠키 토큰 관리
 │           └── service.go         # 비즈니스 로직: 토큰 발급, 대기 순번 조회 (Redis ZSET)
-├── backend/                       # 🔜 [뒷단] Spring Boot 비즈니스 서버 (추가 예정)
+├── backend/                       # ✅ [뒷단] Spring Boot 비즈니스 서버 (초기 설정 완료)
+│   ├── build.gradle               # 빌드 설정 (Spring Boot 4.0.7, Java 25)
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/exit/whosbuying/
+│       │   │   ├── WhosBuyingApplication.java # 진입점
+│       │   │   ├── config/RedisConfig.java    # RedisTemplate 직렬화 설정
+│       │   │   └── service/QueueService.java  # 대기열 비즈니스 로직 스켈레톤
+│       │   └── resources/
+│       │       └── application.yml            # 데이터베이스, Redis, 포트 설정 (포트 8080)
 ├── frontend/                      # 🔜 React 프론트엔드 (추가 예정)
-├── .env                           # 환경 변수 (REDIS_URL 또는 REDIS_ADDR/REDIS_PASSWORD)
+├── .env                           # 환경 변수 (REDIS_URL, BACKEND_PORT, GATEWAY_PORT 등)
 └── .gitignore
 ```
 
@@ -111,47 +122,38 @@ whosbuying/
 
 ## ⚙️ Configuration
 
-환경 변수는 `.env` 파일 또는 시스템 환경 변수로 주입합니다.
-
-| 변수 | 설명 | 예시 |
-|---|---|---|
-| `REDIS_URL` | Redis 접속 URL (비밀번호 및 호스트 정보 포함) | `redis://:password@localhost:6379` |
-| `BACKEND_PORT` | Spring Boot 백엔드 서버 구동 포트 (기본값: 8080) | `8080` |
-| `GATEWAY_PORT` | Go 게이트웨이 서버 구동 포트 (기본값: 8081) | `8081` |
+환경 변수는 프로젝트 루트의 `.env` 파일 또는 시스템 환경 변수로 관리됩니다. 자세한 설정 키 및 기본 형식은 [.env.example](file:///.env.example) 파일을 참고해 주세요.
 
 ---
 
 ## 🚀 Getting Started
 
+### 1. 환경 변수 설정
+프로젝트 루트의 `.env.example` 파일을 복사하여 `.env` 파일을 생성하고 환경에 맞게 정보를 채워 넣습니다.
 ```bash
-# 1. 의존성 설치
+cp .env.example .env
+```
+
+### 2. Go 대기열 게이트웨이 구동
+```bash
 cd gateway
 go mod tidy
-
-# 2. 환경 변수 설정 (.env 파일 생성)
-echo "REDIS_URL=redis://localhost:6379" > ../.env
-
-# 3. 서버 실행
 go run ./cmd/main.go
 ```
+서버가 `.env`에 정의된 `GATEWAY_PORT`(기본값 8081)로 구동됩니다.
 
-서버가 `http://localhost:8081` 에서 구동됩니다.
-
-**대기열 진입 API:**
+### 3. Spring Boot 백엔드 서버 구동
+```bash
+cd backend
+./gradlew bootRun
 ```
-GET /api/queue/stream?itemId={아이템_ID}
-```
-응답은 SSE(text/event-stream) 형식이며, 2초마다 아래 이벤트를 수신합니다.
-
-| 이벤트 | 데이터 | 의미 |
-|---|---|---|
-| `queue_progress` | 현재 대기 번호 (1-indexed) | 아직 대기 중 |
-| `queue_allowed` | `PROCEED` | 진입 허가 완료 |
+서버가 `.env`에 정의된 `BACKEND_PORT`(기본값 8080)로 구동됩니다.
 
 ---
 
 ## 🗺 Roadmap
 
 - [x] Go 게이트웨이 — 익명 토큰 발급, Redis ZSET 대기열, SSE 순번 스트리밍
-- [ ] Spring 비즈니스 서버 — 수문 개방 스케줄러, 재고 차감, 구매 확정 API
+- [x] Spring 비즈니스 서버 — 프로젝트 초기화 및 데이터베이스/Redis 연동 설정 완료
+- [ ] Spring 비즈니스 서버 기능 구현 — 수문 개방 스케줄러, 재고 차감, 구매 확정 API
 - [ ] React 프론트엔드 — 대기열 화면, SSE 수신 및 구매 폼 UI

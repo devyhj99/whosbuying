@@ -18,6 +18,7 @@ go.work.sum
 # Environments
 .env
 .env.*
+!.env.example
 
 # IDEs and Editors (JetBrains/IntelliJ, VS Code)
 .idea/
