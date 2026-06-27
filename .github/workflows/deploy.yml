@@ -17,17 +17,38 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    outputs:
+      gateway: ${{ steps.filter.outputs.gateway }}
+      backend: ${{ steps.filter.outputs.backend }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # 변경 경로 감지 필터 추가
+      - name: Check for file changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            gateway:
+              - 'gateway/**'
+              - 'docker-compose.yml'
+              - '.github/workflows/deploy.yml'
+            backend:
+              - 'backend/**'
+              - 'docker-compose.yml'
+              - '.github/workflows/deploy.yml'
+
       - name: Set up QEMU
+        if: steps.filter.outputs.gateway == 'true' || steps.filter.outputs.backend == 'true'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
+        if: steps.filter.outputs.gateway == 'true' || steps.filter.outputs.backend == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to the Container Registry
+        if: steps.filter.outputs.gateway == 'true' || steps.filter.outputs.backend == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -35,6 +56,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Downcase GitHub Actor for Image Name
+        if: steps.filter.outputs.gateway == 'true' || steps.filter.outputs.backend == 'true'
         run: |
           echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
         env:
@@ -42,6 +64,7 @@ jobs:
 
       # 1. Go Gateway 이미지 빌드 및 푸시
       - name: Build and push Gateway image
+        if: steps.filter.outputs.gateway == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./gateway
@@ -53,6 +76,7 @@ jobs:
 
       # 2. Spring Boot 백엔드 이미지 빌드 및 푸시
       - name: Build and push Backend image
+        if: steps.filter.outputs.backend == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./backend
@@ -64,6 +88,8 @@ jobs:
 
   deploy:
     needs: build-and-push
+    # 빌드된 항목이 있거나 컴포즈/워크플로우가 수정된 배포 필요 시에만 수행
+    if: ${{ needs.build-and-push.outputs.gateway == 'true' || needs.build-and-push.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
