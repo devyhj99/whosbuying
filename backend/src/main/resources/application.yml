@@ -45,3 +45,14 @@ logging:
   level:
     org.hibernate.SQL: ${HIBERNATE_SQL_LOG_LEVEL:info} # 운영 서버에서는 SQL 로그 최소화
     org.hibernate.orm.jdbc.bind: ${HIBERNATE_BIND_LOG_LEVEL:info}
+
+queue:
+  max-active-users: ${QUEUE_MAX_ACTIVE_USERS:500}
+  allow-period-ms: ${QUEUE_ALLOW_PERIOD_MS:5000}
+  redis:
+    key-prefix:
+      queue: ${REDIS_QUEUE_KEY_PREFIX:item:queue:}
+      active-tokens: ${REDIS_ACTIVE_KEY_PREFIX:item:active-tokens:}
+      token-status: ${REDIS_STATUS_KEY_PREFIX:item:token:status:}
+    ttl:
+      token-status-sec: ${REDIS_STATUS_TTL_SEC:900}
